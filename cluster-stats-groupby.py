@@ -18,6 +18,7 @@ BASE_NAME = ".".join(os.path.basename(INPUT_FILE).split('.')[0:-1])
 TASK_GRAPH_FILE = 'cluster-stats.svg'
 OUTPUT_FILE = os.path.join(DATA_DIR, BASE_NAME + '.cl-stats.zarr')
 XARRAY_LOAD = True  # load into memory?
+DASK_VISUALIZE = False  # save task graph? sometimes is super slow, pegs the CPU for minutes
 
 # Dask requires wrapping in a __name__ == '__main__' check
 # in order to use the distributed client locally
@@ -36,16 +37,14 @@ if __name__ == '__main__':
         wait(data)
         logging.info("Finished loading data")
 
-    logging.info("Computing statistics")
+    logging.info("Calculating task graph")
     results = data.groupby('cluster').mean(dim='cell')
 
-    # leaving this out for now, it is extremely slow for
-    # some reason on this computation
-    # 
-    # logging.info("Saving task graph: %s" % TASK_GRAPH_FILE)
-    # dask.visualize(results, filename=TASK_GRAPH_FILE)
+    if DASK_VISUALIZE:
+        logging.info("Saving task graph: %s" % TASK_GRAPH_FILE)
+        dask.visualize(results, filename=TASK_GRAPH_FILE)
 
-    logging.info("Writing output to %s" % OUTPUT_FILE)
+    logging.info("Executing task graph and streaming output to %s" % OUTPUT_FILE)
     shutil.rmtree(OUTPUT_FILE, ignore_errors=True)
     results.to_zarr(OUTPUT_FILE)
 

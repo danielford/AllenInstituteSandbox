@@ -20,7 +20,7 @@ BASE_NAME = ".".join(os.path.basename(INPUT_FILE).split('.')[0:-1])
 TASK_GRAPH_FILE = 'cluster-stats.svg'
 OUTPUT_FILE = os.path.join(DATA_DIR, BASE_NAME + '.cl-stats.parquet')
 STATS = os.environ.get('STATS', 'mean,present,sqr_means')
-XARRAY_LOAD = False  # load into memory?
+XARRAY_LOAD = True  # load into memory?
 
 
 # returns pandas.DataFrame with columns: cluster, gene, sum,  
@@ -81,10 +81,12 @@ if __name__ == '__main__':
     data = xarray.open_zarr(INPUT_FILE)
 
     if XARRAY_LOAD:
-        logging.info("Loading data into cluster memory...")
+        logging.info("Persisting data into cluster memory...")
         data = data.persist()
         wait(data)
-        logging.info("Finished loading data")
+        logging.info("Finished persisting data")
+
+    logging.info("Computing statistics")
 
     da = data.X.data  # access underlying dask array directly
     delayed_results = []
