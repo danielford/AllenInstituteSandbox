@@ -4,16 +4,20 @@ import os
 import logging
 import xarray
 import shutil
+import dask.config
 
 from dask.distributed import Client, LocalCluster, wait, progress
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
+dask.config.set({'array.slicing.split_large_chunks': False})
 
 DATA_DIR = os.environ.get('DATA_DIR', '/data/AllenInstitute/')
 INPUT_FILE = os.path.join(DATA_DIR, os.environ.get('INPUT_FILE', 'WB.postQC.rawcount.20220727.zarr'))
 BASE_NAME = ".".join(os.path.basename(INPUT_FILE).split('.')[0:-1])
 TASK_GRAPH_FILE = 'cluster-stats.svg'
 OUTPUT_FILE = os.path.join(DATA_DIR, BASE_NAME + '.cl-stats.zarr')
+XARRAY_LOAD = True  # load into memory?
 
 # Dask requires wrapping in a __name__ == '__main__' check
 # in order to use the distributed client locally
@@ -25,6 +29,12 @@ if __name__ == '__main__':
 
     logging.info("Loading %s" % INPUT_FILE)
     data = xarray.open_zarr(INPUT_FILE)
+
+    if XARRAY_LOAD:
+        logging.info("Loading data into cluster memory...")
+        data = data.persist()
+        wait(data)
+        logging.info("Finished loading data")
 
     logging.info("Computing statistics")
     results = data.groupby('cluster').mean(dim='cell')
