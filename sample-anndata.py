@@ -1,16 +1,15 @@
 #!/usr/bin/env python
-
-"""
-Script used to take a 1% random sample of the "whole brain" matrix
+"""Script used to take a 1% random sample of the large 'whole brain' AnnData matrix.
 
 Usage:
     $ DATA_DIR=/path/to/dir INPUT_FILE=WB.postQC.rawcount.20220727.h5ad ./sample-anndata.py
 """
 
-import anndata
+import argparse
 import math
 import os
 import logging
+import anndata
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 

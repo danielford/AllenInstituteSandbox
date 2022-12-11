@@ -1,16 +1,19 @@
 #!/usr/bin/env python
+"""Script to calculate cluster statistics using Dask's built-in groupby() method
+
+"""
+
 
 import os
 import logging
 import xarray
 import shutil
-import dask.config
+import dask
+import dask.distributed
 
-from dask.distributed import Client, LocalCluster, wait, progress
+from dask_cluster import init_dask_client
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
-
-dask.config.set({'array.slicing.split_large_chunks': False})
 
 DATA_DIR = os.environ.get('DATA_DIR', '/data/AllenInstitute/')
 INPUT_FILE = os.path.join(DATA_DIR, os.environ.get('INPUT_FILE', 'WB.postQC.rawcount.20220727.zarr'))
@@ -23,9 +26,7 @@ DASK_VISUALIZE = False  # save task graph? sometimes is super slow, pegs the CPU
 # Dask requires wrapping in a __name__ == '__main__' check
 # in order to use the distributed client locally
 if __name__ == '__main__':
-    cluster = LocalCluster(local_directory="/data/dask-worker-space")
-    client = Client(cluster)
-
+    client = init_dask_client()
     logging.info("Dashboard link: %s" % client.dashboard_link)
 
     logging.info("Loading %s" % INPUT_FILE)
@@ -34,7 +35,7 @@ if __name__ == '__main__':
     if XARRAY_LOAD:
         logging.info("Loading data into cluster memory...")
         data = data.persist()
-        wait(data)
+        dask.distributed.wait(data)
         logging.info("Finished loading data")
 
     logging.info("Calculating task graph")
