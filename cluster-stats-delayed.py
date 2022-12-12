@@ -1,34 +1,48 @@
 #!/usr/bin/env python
+"""Script to calculate cluster statistics using a dask.delayed aproach.
+
+This script loads the input file into Dask (optionally persisting into memory),
+then computes cluster statistics by processing the array chunk-wise. The basic
+algorithm is essentially the same as get_cl_stats_parquet in big_util.R, except
+here we use Dask's built-in ability to iterate through a distributed dataset
+chunk-by-chunk using 'dask.Array.blocks' method. Then we use dask.delayed to
+parallelize it, as well as parallelizing the combining of multiple results from
+each chunk.
+
+The output is currently a Pandas dataframe written as a Parquet file.
+"""
 
 import os
-import time
+import sys
+import argparse
 import logging
 import xarray
-import shutil
 import pandas
 import itertools
-
 import dask
 import dask.delayed
-from dask.distributed import Client, LocalCluster, wait, progress
+import dask.distributed
+from dask_cluster import init_dask_client
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
-DATA_DIR = os.environ.get('DATA_DIR', '/data/AllenInstitute/')
-INPUT_FILE = os.path.join(DATA_DIR, os.environ.get('INPUT_FILE', 'WB.postQC.rawcount.20220727.zarr'))
-BASE_NAME = ".".join(os.path.basename(INPUT_FILE).split('.')[0:-1])
-TASK_GRAPH_FILE = 'cluster-stats.svg'
-OUTPUT_FILE = os.path.join(DATA_DIR, BASE_NAME + '.cl-stats.parquet')
-STATS = os.environ.get('STATS', 'mean,present,sqr_means')
-XARRAY_LOAD = True  # load into memory?
+ARG_PARSER = argparse.ArgumentParser(prog=sys.argv[0], description=__doc__)
+ARG_PARSER.add_argument('dataset', help='Zarr directory to load from', nargs=1)
+ARG_PARSER.add_argument('-v', '--visualize', help='Generate a Dask task graph visualization',
+    action='store_true')
+ARG_PARSER.add_argument('-p', '--persist', 
+    help='Eager-load the dataset into memory using dask.Array.persist()', action='store_true')
 
+TASK_GRAPH_FILE = 'dask-task-graph.svg'
 
 # returns pandas.DataFrame with columns: cluster, gene, sum,  
-def chunk_statistics(chunk, offset, cells, cluster_ids, genes, stats):
+def chunk_statistics(chunk, cluster_ids, genes):
     df = pandas.DataFrame(chunk).groupby(cluster_ids.values).sum()
     df.columns = genes
     df['cluster'] = df.index
-    return df.melt(id_vars=['cluster'], var_name='gene', value_name='sum')
+    df = df.melt(id_vars=['cluster'], var_name='gene', value_name='sum')
+    df = df[df['sum'] >= 0]
+    return df
 
 # takes two pandas.DataFrame with columns: cluster, gene, sum
 # aggregates along cluster/gene, adding sums together
@@ -43,10 +57,9 @@ def delayed_chunk_statistics(ds, chunk_index):
     offset = [a*b for (a,b) in zip(chunk_index, da.chunksize)]
     # metadata objects to pass in to chunk_statistics (methods called via
     # dask.delayed(...) are not supposed to access any global state)
-    cells = ds.cell[offset[0]:offset[0]+chunk.shape[0]]
     cluster_ids = ds.cluster[offset[0]:offset[0]+chunk.shape[0]]
     genes = ds.gene[offset[1]:offset[1]+chunk.shape[1]]
-    return dask.delayed(chunk_statistics)(chunk, offset, cells, cluster_ids, genes, STATS)
+    return dask.delayed(chunk_statistics)(chunk, cluster_ids, genes)
 
 
 # takes a list of pandas.DataFrame wrapped in dask.delayed
@@ -72,18 +85,22 @@ def combine_delayed_results(results):
 # Dask requires wrapping in a __name__ == '__main__' check
 # in order to use the distributed client locally
 if __name__ == '__main__':
-    cluster = LocalCluster(local_directory="/data/dask-worker-space")
-    client = Client(cluster)
+    args = ARG_PARSER.parse_args()
+    input_file = args.dataset[0]
+    directory = os.path.dirname(input_file)
+    base_name = ".".join(os.path.basename(input_file).split('.')[0:-1])
+    output_file = os.path.join(directory, base_name + 'cl-stats.parquet')
 
+    client = init_dask_client()
     logging.info("Dashboard link: %s" % client.dashboard_link)
 
-    logging.info("Loading %s" % INPUT_FILE)
-    data = xarray.open_zarr(INPUT_FILE)
+    logging.info("Loading %s" % input_file)
+    data = xarray.open_zarr(input_file)
 
-    if XARRAY_LOAD:
+    if args.persist:
         logging.info("Persisting data into cluster memory...")
         data = data.persist()
-        wait(data)
+        dask.distributed.wait(data)
         logging.info("Finished persisting data")
 
     logging.info("Computing statistics")
@@ -94,7 +111,13 @@ if __name__ == '__main__':
     for inds in itertools.product(*map(range, da.blocks.shape)):
         delayed_results.append(delayed_chunk_statistics(data, inds))
 
-    results = combine_delayed_results(delayed_results).compute()
+    results = combine_delayed_results(delayed_results)
 
-    logging.info("Finished computing statistics, writing to %s" % OUTPUT_FILE)
-    results.to_parquet(OUTPUT_FILE)
+    if args.visualize:
+        logging.info("Saving task graph: %s" % TASK_GRAPH_FILE)
+        dask.visualize(results, filename=TASK_GRAPH_FILE)
+
+    results = results.compute()
+
+    logging.info("Finished computing statistics, writing to %s" % output_file)
+    results.to_parquet(output_file)

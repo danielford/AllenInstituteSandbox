@@ -16,12 +16,12 @@ import anndata
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
-parser = argparse.ArgumentParser(prog=sys.argv[0], description=__doc__)
-parser.add_argument('-s', '--sample', type=float, required=True,
+ARG_PARSER = argparse.ArgumentParser(prog=sys.argv[0], description=__doc__)
+ARG_PARSER.add_argument('-s', '--sample', type=float, required=True,
     help="a sample percentage of the overall dataset (e.g., 0.01 for 1%% sample)")
-parser.add_argument('filename', help='AnnData *.h5ad file to load', nargs=1)
-args = parser.parse_args()
+ARG_PARSER.add_argument('filename', help='AnnData *.h5ad file to load', nargs=1)
 
+args = ARG_PARSER.parse_args()
 input_file = args.filename[0]
 directory = os.path.dirname(input_file)
 base_name = ".".join(os.path.basename(input_file).split('.')[0:-1])

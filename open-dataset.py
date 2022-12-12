@@ -30,7 +30,6 @@ Usage:
 import sys
 import code
 import argparse
-
 from dask_cluster import init_dask_client
 
 ARG_PARSER = argparse.ArgumentParser(prog=sys.argv[0], description=__doc__)
