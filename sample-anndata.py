@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 """Script used to take a 1% random sample of the large 'whole brain' AnnData matrix.
 
-Usage:
-    $ DATA_DIR=/path/to/dir INPUT_FILE=WB.postQC.rawcount.20220727.h5ad ./sample-anndata.py
+This script loads the AnnData matrix into memory (e.g., does not use 'backed' mode) so be careful
+you have enough physical memory for that. You provide a sampling percentage as a float,
+e.g. "--sample 0.01" results in a 1% sample (a 10% sample of rows and 10% sample of columns).
+The output is written to the same location as the input with a renamed suffix.
 """
 
+import sys
 import argparse
 import math
 import os
@@ -13,38 +16,36 @@ import anndata
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
-# percentage of each dimension to sample
-# 
-# use 0.10 for overall 1% sample (.10 * .10 == 1%)
-# use 0.32 for overall 10% sample (.32 * .32 =~ 10%)
-# use 0.225 for overall 5% sample (.225 * .225 =~ 5%)
-SAMPLE_PCT = float(os.environ.get('SAMPLE_PCT', '0.10'))
+parser = argparse.ArgumentParser(prog=sys.argv[0], description=__doc__)
+parser.add_argument('-s', '--sample', type=float, required=True,
+    help="a sample percentage of the overall dataset (e.g., 0.01 for 1%% sample)")
+parser.add_argument('filename', help='AnnData *.h5ad file to load', nargs=1)
+args = parser.parse_args()
 
-DATA_DIR = os.environ.get('DATA_DIR', '/data/AllenInstitute/')
-INPUT_FILE = os.path.join(DATA_DIR, os.environ.get('INPUT_FILE', 'WB.postQC.rawcount.20220727.h5ad'))
-BASE_NAME = ".".join(os.path.basename(INPUT_FILE).split('.')[0:-1])
-OUTPUT_FILE = os.path.join(DATA_DIR, BASE_NAME + ('.sample-%.2f.h5ad' % math.pow(SAMPLE_PCT, 2)))
+input_file = args.filename[0]
+directory = os.path.dirname(input_file)
+base_name = ".".join(os.path.basename(input_file).split('.')[0:-1])
+output_file = os.path.join(directory, base_name + '.sample-%.2f.h5ad' % args.sample)
+axis_sample = math.sqrt(args.sample)
 
-logging.info("Reading from %s" % INPUT_FILE)
+logging.info("Reading from %s" % input_file)
 
 # load into memory, takes about ~30min on r5.8xlarge instance
-adata = anndata.read_h5ad(INPUT_FILE)
+adata = anndata.read_h5ad(input_file)
 
-logging.info("Taking %f random sample of genes (columns) and cells (rows)" % SAMPLE_PCT)
+logging.info("Taking %f random sample of genes (columns)" % axis_sample)
+sampled_genes = adata.var.sample(math.floor(len(adata.var) * axis_sample)).index.tolist()
 
-# take sample of genes (columns)
-sampled_genes = adata.var.sample(math.floor(len(adata.var) * SAMPLE_PCT)).index.tolist()
-
-# take sample of cells (rows)
-sampled_cells = adata.obs.sample(math.floor(len(adata.obs) * SAMPLE_PCT)).index.tolist()
+logging.info("Taking %f random sample of cells (rows)" % axis_sample)
+sampled_cells = adata.obs.sample(math.floor(len(adata.obs) * axis_sample)).index.tolist()
 
 logging.info("Original matrix is (%s), sampled matrix will be (%d. %d)" %
     (adata.shape, len(sampled_cells), len(sampled_genes)))
 
-# result is (SAMPLE_PCT^2) sample of original matrix
+# subset the matrix with the new arrays for rows/columns
 sampled_matrix = adata[sampled_cells, sampled_genes]
 
-logging.info("Writing to %s" % OUTPUT_FILE)
-sampled_matrix.write(OUTPUT_FILE)
+logging.info("Writing to %s" % output_file)
+sampled_matrix.write(output_file)
 
 logging.info("Finished")
