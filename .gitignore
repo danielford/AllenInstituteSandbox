@@ -130,3 +130,6 @@ dmypy.json
 
 # temporary space for Dask workers
 dask-worker-space/
+
+# VS Code editor settings
+.vscode/
