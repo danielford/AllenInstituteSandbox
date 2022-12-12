@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Script used to take a 1% random sample of the large 'whole brain' AnnData matrix.
+"""Script used to take a random sample of the large 'whole brain' AnnData matrix.
 
 This script loads the AnnData matrix into memory (e.g., does not use 'backed' mode) so be careful
 you have enough physical memory for that. You provide a sampling percentage as a float,

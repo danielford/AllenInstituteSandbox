@@ -29,8 +29,12 @@ Usage:
 
 import sys
 import code
+import argparse
 
 from dask_cluster import init_dask_client
+
+ARG_PARSER = argparse.ArgumentParser(prog=sys.argv[0], description=__doc__)
+ARG_PARSER.add_argument('path', help='Full path to a dataset to load', nargs='+')
 
 def open_dataset(path):
     ext = path.split('.')[-1:][0].lower()
@@ -50,17 +54,18 @@ def open_dataset(path):
 # Dask requires wrapping in a __name__ == '__main__' check
 # in order to use the distributed client locally
 if __name__ == '__main__':
-    if len(sys.argv) <= 1:
-        raise ValueError("You must provide at least one file path to load")
+    args = ARG_PARSER.parse_args()
 
     client = init_dask_client()
     print("Dask dashboard link: %s" % client.dashboard_link)
 
-    print("\n\n Datasets:")
+    print("\n\nDatasets:")
 
     _g = globals()
-    datasets = zip(sys.argv[1:], ['data%d' % i for i in range(1, len(sys.argv))])
-    for path, var_name in datasets:
+    datasets = args.path
+    var_names = ['data%d' % i for i in range(1, len(datasets)+1)]
+
+    for path, var_name in zip(datasets, var_names):
         print("* %s: %s" % (var_name, path))
         _g[var_name] = open_dataset(path)
 
