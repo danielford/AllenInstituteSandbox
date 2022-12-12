@@ -33,7 +33,7 @@ TASK_GRAPH_FILE = 'dask-task-graph.svg'
 # in order to use the distributed client locally
 if __name__ == '__main__':
     args = ARG_PARSER.parse_args()
-    input_file = args.dataset[0]
+    input_file = args.dataset[0].rstrip(os.sep)
     directory = os.path.dirname(input_file)
     base_name = ".".join(os.path.basename(input_file).split('.')[0:-1])
     output_file = os.path.join(directory, base_name + 'cl-stats.zarr')

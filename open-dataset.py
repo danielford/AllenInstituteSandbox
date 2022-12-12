@@ -24,9 +24,9 @@ do too many or too large computations.
 
 Usage:
     $ ./open-dataset.py [PATH] ...
-
 """
 
+import os
 import sys
 import code
 import argparse
@@ -65,6 +65,7 @@ if __name__ == '__main__':
     var_names = ['data%d' % i for i in range(1, len(datasets)+1)]
 
     for path, var_name in zip(datasets, var_names):
+        path = path.rstrip(os.sep)
         print("* %s: %s" % (var_name, path))
         _g[var_name] = open_dataset(path)
 

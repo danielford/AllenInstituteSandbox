@@ -26,7 +26,7 @@ ARG_PARSER = argparse.ArgumentParser(prog=sys.argv[0], description=__doc__)
 ARG_PARSER.add_argument('filename', help='AnnData *.h5ad file to convert', nargs=1)
 
 args = ARG_PARSER.parse_args()
-input_file = args.filename[0]
+input_file = args.filename[0].rstrip(os.sep)
 directory = os.path.dirname(input_file)
 base_name = ".".join(os.path.basename(input_file).split('.')[0:-1])
 output_file = os.path.join(directory, base_name + '.zarr')
