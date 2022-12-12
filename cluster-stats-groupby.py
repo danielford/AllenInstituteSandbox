@@ -10,6 +10,7 @@ and a large amount of intermediate objects in memory.
 """
 
 import os
+import sys
 import argparse
 import logging
 import xarray
