@@ -58,7 +58,7 @@ You can also just run `python` to drop into an interactive shell, or use the `op
 ## December 13, 2022
 I thought it was a good time to give a formal update and go over what I’ve done and learned so far, as well as some ideas for next steps.
 
-#### Technology & Infrastructure Research
+### Technology & Infrastructure Research
 As we discussed before before, I looked into a bunch of different technologies for approaching this problem (large sparse 2-d matrix operations). Just to recap, our high-level conclusions were:
 * GPU computing looks interesting, but maybe is too specialized/niche — harder to program, harder to understand performance characteristics, etc.
 * Spark is a common recommendation for “big data” problems, however it is primarily meant for data frames (fixed, relatively small number of columns) and does not chunk datasets “vertically” (e.g. by columns). I ran into all kinds of weird errors trying to process your datasets with 30k+ columns.
@@ -75,13 +75,13 @@ After some more experimentation with Dask, Xarray, and Zarr, I found out a few m
 * One big drawback that I have not yet solved is that Xarray does not support sparse data in-memory (at least, not yet — I saw some GitHub issues and it looks like it may be in progress). The Zarr file format seems to perform really well on sparse array data (the same AnnData object converted into Zarr is several times smaller on disk), however in-memory I think it is still stored “densely”. I’m seeing very large memory consumption in my Dask scripts, and I think this may be (one) culprit.
 * Currently, I am still working with Dask on a single machine (not using a cluster yet), however I am using Dask’s distributed scheduler locally, as described here: [Deploy Dask Clusters — Dask  documentation](https://docs.dask.org/en/stable/deploying.html#deploy-dask-clusters). This means the API and the performance characteristics are the same, but all the workers are running on the local machine. Once we need to, I can set up a remote Dask cluster and change `dask_cluster.py` to point to a remote cluster and all our scripts will automatically run against the cluster instead.
 
-#### Utility Scripts
-I wrote a few Python scripts to assist in a few operations:
-* `sample-anndata.py` takes an AnnData matrix stored as `.h5ad`and takes a random sample, resulting in a smaller AnnData file that is a random subset (e.g. 10% random sample of rows and 10% random sample of columns, resulting in a matrix 1% of the size of the original). Whether this is useful to you guys or not, who knows, but I’m using this a lot to play around with Dask and Xarray without needing a lot of compute power.
-* `open-dataset.py` takes one or more datasets on disk and loads them into an interactive Python interpreter where I can play around with them. Supports Parquet (using Pandas), Zarr (using Xarray), and AnnData.
+### Utility Scripts
+I wrote a few Python scripts to assist in a few operations.
+* `sample-anndata.py` takes an AnnData matrix stored as `.h5ad`and takes a random sample, resulting in a smaller AnnData file that is a random subset (e.g. 10% random sample of rows and 10% random sample of columns, resulting in a matrix 1% of the size of the original). I’m using this a lot to play around with Dask and Xarray without needing a lot of compute power.
+* `open-dataset.py` takes one or more datasets on disk and loads them into an interactive Python interpreter where I can play around with them. Supports Parquet (using Pandas), Zarr (using Xarray), and AnnData. It also starts up a local Dask distributed cluster, which you can monitor through the dashboard.
 * `convert-to-zarr.py` takes a potentially very large AnnData file,  and converts it iteratively to the Xarray Zarr format. Although this uses Xarray, it does not use Dask so you can run it on a machine without a lot of memory (it doesn’t need to load the AnnData file into memory). However, it properly chunks data so that it can be later loaded in a Dask cluster in parallel.
 
-#### Example Computation Scripts
+### Example Computation Scripts
 There are two basic approaches to implementing your `get_cl_stats_parquet` algorithm from `big_util.R`. You can use Xarray’s native support for `groupby` aggregations, or you can do something conceptually similar to `get_cl_stats_parquet` and process each chunk of the array separately, combining results at the end. I tried both of these approaches:
 * `cluster-stats-groupby.py` tries to use Xarray’s native `groupby` functionality on the entire array. It works, however it is extremely slow and extremely memory intensive. I had to run it on an EC2 `r5.24xlarge` instance (96 cores, 768GB memory), and it still took over 30 minutes to complete. With less memory available, it just stalled or required spilling lots of data to disk which slowed the computations to a crawl.
 * `cluster-stats-delayed.py` tries to do the same basic approach as in `get_cl_stats_parquet`, however instead of having to transform the data into chunked Parquet files (as you did), we can take advantage of Dask’s chunking. Dask provides [dask.array.Array.blocks](https://docs.dask.org/en/stable/generated/dask.array.Array.blocks.html) which lets you iterate through the underlying chunks of the Dask array. Then I also used [Dask Delayed](https://docs.dask.org/en/stable/delayed.html), which lets you set up arbitrary task graphs of computations to be executed in parallel across a Dask cluster. I used this to process all the chunks in parallel, and from there the basic algorithm is pretty similar to the R code.
@@ -93,4 +93,13 @@ Right now, both versions are way too slow… both take 30+ minutes on the full d
 Until we optimize further, I can't say which approach is really better. The groupby approach I felt was more similar to many other operations you'll presumably do on Xarray matrices. Groupby operations may be somewhat of an exception, but mostly these native operations will be much faster than trying to do the parallelism/chunking explicitly.
 
 Although maybe it won't turn out to be optimal here, I wanted to explore Dask.Delayed because that's how we'll presumably parallelize things like the K-nearest-neighbors algorithm, where we have a 3rd party library that doesn't run on Dask.
+
+
+### Notes on Dask
+
+Right now, any of the scripts above that use Dask are set up to use the local distributed cluster. This means Dask automatically figures out how much CPU/memory you have on your local machine and it spawns enough workers to utilize it, but all the processes are still running on a single machine.
+
+For now, I've been trying to focus on learning how to use Dask as a user/developer and not worrying too much about setting up complex infrastructure or optimizing too deeply. In the future, once I've deployed a remote Dask cluster, I can point to that in `dask_cluster.py` and scripts will automatically begin using that. It won't change how you interact with Dask objects or how you monitor the performance, in theory it will just give us access to more compute power.
+
+Even though we're running locally, we can still use all the Dask tools for debugging and optimizing. For example, all the scripts will print out a link to a web dashboard where you'll see a bunch of diagnostics about the running cluster. See [Dashboard Diagnostics - Dask](https://docs.dask.org/en/stable/dashboard.html). You may need to set up [port forwarding](https://docs.dask.org/en/stable/diagnostics-distributed.html#port-forwarding) if you're running Dask on a remote machine over SSH, like I do.
 
