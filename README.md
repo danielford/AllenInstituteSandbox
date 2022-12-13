@@ -53,6 +53,54 @@ As long as your shell has the virtual environment activated (you should see `(.v
 You can also just run `python` to drop into an interactive shell, or use the `open-dataset.py` script to do the same after opening a dataset.
 
 
+## Development Environment
+You can use any development environment or text editor you like, as long as you can check out this repo and you have Python3 and can install packages via pip. However, here are some details about how my environment is setup in case it is helpful:
+
+As an editor/IDE for Python, I really like [Visual Studio Code](https://code.visualstudio.com/). It's free, open-source, very customizable, and has lots of plugins/themes available in the community.
+
+I installed the following VS Code extensions (you do so from the Extensions menu on the left):
+* Python
+* Pylance
+* R
+* Remote - SSH
+* Remote Explorer
+
+There are tons of others available of course, including one to add support for Jupyter Notebooks. I assume it lets you run your notebook from directly inside of VS Code, which could be cool. I haven't explored that, but if I get Jupyter working I'll add those details here.
+
+### Remote Development
+The Remote extensions are particularly important, since that's often how I like to develop. I will check out this Git repository somewhere on my Linux server. Then I use the Remote - SSH extension to SSH into my server and open the folder where I've checked out the repo. VS Code then acts as if all the files are local, you can edit files all you want, even run or debug scripts, and its all happening on the remote server. However, VS Code is making it appear that all the files are local to your laptop while it simply synchronizes changes to your server in the background. This means you get a fast, snappy editing experience locally (compared to editing files directly over an SSH connection, which sometimes has a lot of latency), but when you actually run your scripts you have the full power of your big beefy Linux server.
+
+I usually also have the repository checked out locally as well, and I have two different VS Code workspaces for each one (in the File menu you have options for adding additional folders to your current workspace, or saving the current workspace to a file that you can load from again).
+
+Once you've installed the above extensions, you can go to the Remote Explorer tab and click on the little gear, which should bring up a command prompt where you can create or edit a custom SSH configuration file. This is where you define the server that VS Code will SSH into. Here's what mine looks like (this file lives on my Mac laptop):
+
+`/Users/danford/Workspace/remote-servers.ssh`
+```
+Host AllenInstitute
+  HostName ai-dev.aws.danford.dev
+  IdentityFile "/Users/danford/Dropbox/Skunkworks/Misc/Allen Institute Key pair.pem"
+  User ec2-user
+```
+
+The first line gives the server a friendly name, I chose "AllenInstitute" but it can be anything. The rest should be fairly self explanatory, you put in the hostname and username you use to SSH onto your Linux server. If you use password authentication instead of keypair, then you will not need the `IdentityFile` line.
+
+If you have multiple remote servers that you work on, then you can add them all here. Any servers listed here will get shown when you open up the Remote Explorer tab in VS Code.
+
+Once you save that and go back to your Remote Explorer tab, you should see the server available and you can connect and open a folder on the remote server. VS Code will probably prompt you to install some of the extensions on the remote host, make sure you do so otherwise the Python language features won't work.
+
+If you already checked out this repository on your remote server, then you can just navigate to that folder. Otherwise you can just choose where you want your workspace to live (e.g., home directory, whatever) and then clone the repo from within VS Code (cmd+shift+P to bring up the Command Palette, then search for the 'Git: Clone' command). Make sure to run the commands in the Package Setup section to set up the Python virtual environment after cloning the package.
+
+You can open the VS Code terminal (View -> Terminal) to run commands on the remote server. This is handy for doing this package setup, or for running scripts, running Python interactively, etc.
+
+
+#### Port Forwarding
+One reason I like VS Code's remote development plugin is that it automatically detects when your scripts are running local web servers (e.g. for the Dask Dashboard I was showing earlier) and it will automatically forward the ports correctly over the SSH tunnel for you. If you have the VS Code terminal open (View -> Terminal) and it sees a string like `http://localhost:8787` it will automatically forward local port 8787 over the SSH connection so you can load the web dashboard on your laptop. You will probably see a popup window that has a button you can press to open it directly, otherwise you can see the forwarded ports under the "Ports" tab in the bottom panel.
+
+
+### Python Integration
+If you've installed the Python extension (both locally as well as in the remote server), VS Code will do a bunch of nice type-checking of your Python code, you will see method suggestions in dropdowns, etc. In order for this to work, VS Code needs to be using the Python version that is in your virtual environment (see "Package Setup" section above). If you already have the virtual environment created, VS Code should auto-detect this, but if it does not (or if you created it after launching VS Code), then you can open the Command Palette (cmd+shift+P), type 'Python: Select Interpreter', and then point it at `.venv/bin/python`. Then it should be able to find all the libraries you installed, etc.
+
+
 # Progress Updates
 
 ## December 13, 2022
