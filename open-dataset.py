@@ -30,6 +30,9 @@ import os
 import sys
 import code
 import argparse
+import readline
+import rlcompleter
+
 from dask_cluster import init_dask_client
 
 ARG_PARSER = argparse.ArgumentParser(prog=sys.argv[0], description=__doc__)
@@ -70,6 +73,9 @@ if __name__ == '__main__':
         _g[var_name] = open_dataset(path)
 
     print("\n")
+
+    readline.set_completer(rlcompleter.Completer(_g).complete)
+    readline.parse_and_bind("tab: complete")
 
     # launch an interactive python session
     code.InteractiveConsole(locals=_g).interact()
