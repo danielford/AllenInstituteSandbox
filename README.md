@@ -103,3 +103,12 @@ For now, I've been trying to focus on learning how to use Dask as a user/develop
 
 Even though we're running locally, we can still use all the Dask tools for debugging and optimizing. For example, all the scripts will print out a link to a web dashboard where you'll see a bunch of diagnostics about the running cluster. See [Dashboard Diagnostics - Dask](https://docs.dask.org/en/stable/dashboard.html). You may need to set up [port forwarding](https://docs.dask.org/en/stable/diagnostics-distributed.html#port-forwarding) if you're running Dask on a remote machine over SSH, like I do.
 
+
+### Next Steps
+
+These are not necessarily in priority order, I'm just brainstorming some different areas that I think might be productive:
+
+* I still want to setup a proper comparison of the cluster stats scripts against the R version. I suspect the large number of clusters is significantly impacting the performance. I don't know what case is more realistic (or whether small clusters are trimmed explicitly for this reason in your existing code). But it would help us to better understand exactly how Dask is comparing to your existing implementation.
+* I want to investigate whether we can get Xarray to use a sparse matrix in-memory, as I also think it may significantly impact the performance (right now the memory requirements for loading the entire 4mm x 32k matrix into Dask cluster memory is enourmous). From [some Google searching](https://www.google.com/search?q=xarray+sparse) it looks plausible, there's even a [closed GitHub issue](https://github.com/pydata/xarray/issues/1375), but it needs some research.
+* Once we are happy with the performance of some Dask algorithms running locally (parallelized, but on a single machine), the next step will be to set up a remote cluster, set up some form of auto-scaling and idle-shutdown behavior, then get these scripts connected to it and have them reading to / writing from S3.
+
