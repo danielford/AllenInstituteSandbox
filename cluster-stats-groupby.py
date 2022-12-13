@@ -37,7 +37,7 @@ if __name__ == '__main__':
     input_file = args.dataset[0].rstrip(os.sep)
     directory = os.path.dirname(input_file)
     base_name = ".".join(os.path.basename(input_file).split('.')[0:-1])
-    output_file = os.path.join(directory, base_name + 'cl-stats.zarr')
+    output_file = os.path.join(directory, base_name + '.cl-stats.zarr')
 
     client = init_dask_client()
     logging.info("Dashboard link: %s" % client.dashboard_link)
