@@ -2,20 +2,30 @@
 Sandbox repository for Python development work for Allen Institute
 
 ## Package setup
-*Note*: I’m running this on Python 3.7.10, but probably any modern Python3 will do.
+*Note*: I've changed this package to use [Conda](https://conda.io) for dependency management instead of [pip](https://pypi.org/project/pip/) because that made it convenient to integrate with [dask-yarn](https://yarn.dask.org/en/latest/aws-emr.html) which is designed to work with a Conda environment. If you set this package up before, just `rm -rf .venv/` before following the instructions below.
 
-Once the package is checked out, create a Python virtual environment (venv) and install dependencies into it. Run these commands from the package root:
+First, install Conda to your local machine using the minimal installer [Miniconda](https://docs.conda.io/en/latest/miniconda.html). I've tested this package on both Linux and MacOS (Windows should be possible in theory, but I have not tested it).
+
+Next, check the package out from GitHub:
 ```shell
-# create the virtual environment at <package-root>/.venv/
-python3 -m venv .venv
+git clone git@github.com:danielford/AllenInstituteSandbox.git
+cd AllenInstituteSandbox
+```
 
-# set up shell helpers (so that running 'python' will use the correct version and dependencies)
-source .venv/bin/activate
+Once the package is checked out, create a Conda environment from the template `environment.yml`. 
 
-# install dependencies listed in requirements.txt into the virtual environment
-python -m pip install -r requirements.txt
+```shell
+# creates a new Conda environment under .env/ and installs the packages listed in environment.yml
+conda env create --prefix .env -v -f ./environment.yml
 
-# you can always easily 'rm -rf .venv' and recreate it again if needed
+# you can always easily 'rm -rf .env' and recreate it again later if needed
+```
+*Warning:* Conda environment creation is really slow. At the time of this writing, it takes about 40-50 minutes to complete a fresh environment creation. Maybe it can be improved at some point... 😩
+
+Next, you need to activate the environment in your shell:
+
+```shell
+conda activate $(pwd)/.env
 ```
 
 From there, you should be able to run any script like so:
@@ -23,29 +33,34 @@ From there, you should be able to run any script like so:
 ./convert-to-zarr.py --arg1 --arg2 ...etc
 ```
 
+Also, just invoking `python` will find the correct version from your Conda environment.
+
 ### Missing Dependency Errors
 
-If you get errors about missing dependencies (e.g. during `import` statements), you are probably running in a new shell without the virtual environment activated. Activate the environment again to fix it:
+If you get errors about missing dependencies (e.g. during `import` statements), you are probably running in a new shell without the Conda environment activated. Activate the environment again to fix it:
 ```shell
-source .venv/bin/activate
+conda activate $(pwd)/.env
 ```
 
-Another possibility is that you've pulled down a new commit that added a new dependency. In that case, you just need to install from the `requirements.txt` again:
+Another possibility is that you've pulled down a new commit that added a new dependency. In that case, you just need to update from the `environment.yml` file again:
 ```shell
-python -m pip install -r requirements.txt
+conda env update --prune --file environment.yml
 ```
 
 ## Adding new dependencies
-```shell
-# make sure you are in the virtual environment before running these:
-python -m pip install <package-name>
-python -m pip freeze > requirements.txt
+New dependencies should be added to `environment.yml` under `dependencies`. These can be just naked package names, or version specifications such as `python=3.10`, e.g. exactly what you would pass to `conda install`.
 
-# don't forget to commit the new requirements.txt!
+You can, of course, install packages directly using `conda install`. However, unless you add them to `environment.yml`, others who check out the package won't automatically get those dependencies installed.
+
+After adding or removing dependencies from `environment.yml`, simply update the environment using Conda:
+```shell
+conda env update --prune --file environment.yml
 ```
 
+Don't forget to commit and push the new `environment.yml`!
+
 ## Running Scripts
-As long as your shell has the virtual environment activated (you should see `(.venv)` in your shell prompt), you should be able to easily run the scripts from the commandline:
+As long as your shell has the Conda environment activated (you should see `(/path/to/AllenInstituteSandbox/.env)` in your shell prompt), you should be able to easily run the scripts from the commandline:
 ```shell
 ./convert-to-zarr.py /path/to/input.h5ad
 ```
@@ -54,7 +69,7 @@ You can also just run `python` to drop into an interactive shell, or use the `op
 
 
 ## Development Environment
-You can use any development environment or text editor you like, as long as you can check out this repo and you have Python3 and can install packages via pip. However, here are some details about how my environment is setup in case it is helpful:
+You can use any development environment or text editor you like, as long as you can check out this repo and you have Python3 and can install packages via Conda. However, here are some details about how my environment is setup in case it is helpful:
 
 As an editor/IDE for Python, I really like [Visual Studio Code](https://code.visualstudio.com/). It's free, open-source, very customizable, and has lots of plugins/themes available in the community.
 
@@ -98,7 +113,7 @@ One reason I like VS Code's remote development plugin is that it automatically d
 
 
 ### Python Integration
-If you've installed the Python extension (both locally as well as in the remote server), VS Code will do a bunch of nice type-checking of your Python code, you will see method suggestions in dropdowns, etc. In order for this to work, VS Code needs to be using the Python version that is in your virtual environment (see "Package Setup" section above). If you already have the virtual environment created, VS Code should auto-detect this, but if it does not (or if you created it after launching VS Code), then you can open the Command Palette (cmd+shift+P), type 'Python: Select Interpreter', and then point it at `.venv/bin/python`. Then it should be able to find all the libraries you installed, etc.
+If you've installed the Python extension (both locally as well as in the remote server), VS Code will do a bunch of nice type-checking of your Python code, you will see method suggestions in dropdowns, etc. In order for this to work, VS Code needs to be using the Python version that is in your virtual environment (see "Package Setup" section above). If you already have the virtual environment created, VS Code should auto-detect this, but if it does not (or if you created it after launching VS Code), then you can open the Command Palette (cmd+shift+P), type 'Python: Select Interpreter', and then point it at `.env/bin/python`. Then it should be able to find all the libraries you installed, etc.
 
 
 # Progress Updates
