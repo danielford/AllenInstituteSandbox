@@ -1,28 +1,34 @@
 # Allen Institute Sandbox
 Sandbox repository for Python development work for Allen Institute
 
-## Package setup
-*Note*: I've changed this package to use [Conda](https://conda.io) for dependency management instead of [pip](https://pypi.org/project/pip/) because that made it convenient to integrate with [dask-yarn](https://yarn.dask.org/en/latest/aws-emr.html) which is designed to work with a Conda environment. If you set this package up before, just `rm -rf .venv/` before following the instructions below.
 
-First, install Conda to your local machine using the minimal installer [Miniconda](https://docs.conda.io/en/latest/miniconda.html). I've tested this package on both Linux and MacOS (Windows should be possible in theory, but I have not tested it).
+## Package Setup
 
-Next, check the package out from GitHub:
+*Note: This package is currently using [Mamba](https://mamba.readthedocs.io/en/latest/) for dependency management instead of [pip](https://pypi.org/project/pip/) because that made it simpler to integrate with [dask-yarn](https://yarn.dask.org/en/latest/aws-emr.html). Mamba is a package manager built on top of [Conda](https://docs.conda.io/en/latest/), but it is much faster (which is important for quickly bootstrapping a transient Dask cluster, you do not want to wait 45min+ for Conda to create a Python environment!).*
+
+First, install Conda to your local machine using the minimal installer [Miniconda](https://docs.conda.io/en/latest/miniconda.html). Once it's done, you should have access to the `conda` command in your shell. Now you need to install the `mamba` command in your base environment:
+
+```shell
+conda install -c conda-forge mamba
+```
+From here on out, you will use the `mamba` command as a drop-in replacement for `conda` when creating environments or installing packages.
+
+Next, check this package out from GitHub:
 ```shell
 git clone git@github.com:danielford/AllenInstituteSandbox.git
 cd AllenInstituteSandbox
 ```
 
-Once the package is checked out, create a Conda environment from the template `environment.yml`. 
+Once the package is checked out, create a Python environment from the template `environment.yml`. 
 
 ```shell
 # creates a new Conda environment under .env/ and installs the packages listed in environment.yml
-conda env create --prefix .env -v -f ./environment.yml
+mamba env create --prefix .env -v -f ./environment.yml
 
 # you can always easily 'rm -rf .env' and recreate it again later if needed
 ```
-*Warning:* Conda environment creation is really slow. At the time of this writing, it takes about 40-50 minutes to complete a fresh environment creation. Maybe it can be improved at some point... 😩
 
-Next, you need to activate the environment in your shell:
+Next, you need to activate the environment in your shell (you still use `conda` for this):
 
 ```shell
 conda activate $(pwd)/.env
@@ -44,7 +50,7 @@ conda activate $(pwd)/.env
 
 Another possibility is that you've pulled down a new commit that added a new dependency. In that case, you just need to update from the `environment.yml` file again:
 ```shell
-conda env update --prune --file environment.yml
+mamba env update --prune --file environment.yml
 ```
 
 ## Adding new dependencies
@@ -54,7 +60,7 @@ You can, of course, install packages directly using `conda install`. However, un
 
 After adding or removing dependencies from `environment.yml`, simply update the environment using Conda:
 ```shell
-conda env update --prune --file environment.yml
+mamba env update --prune --file environment.yml
 ```
 
 Don't forget to commit and push the new `environment.yml`!
