@@ -17,7 +17,7 @@ import xarray
 import shutil
 import dask
 import dask.distributed
-from dask_cluster import init_dask_client
+from dask_cluster_helpers import AutoDaskCluster
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
@@ -27,6 +27,7 @@ ARG_PARSER.add_argument('-v', '--visualize', help='Generate a Dask task graph vi
     action='store_true')
 ARG_PARSER.add_argument('-p', '--persist', 
     help='Eager-load the dataset into memory using dask.Array.persist()', action='store_true')
+AutoDaskCluster.add_argparse_args(ARG_PARSER)
 
 TASK_GRAPH_FILE = 'dask-task-graph.svg'
 
@@ -39,27 +40,27 @@ if __name__ == '__main__':
     base_name = ".".join(os.path.basename(input_file).split('.')[0:-1])
     output_file = os.path.join(directory, base_name + '.cl-stats.zarr')
 
-    client = init_dask_client()
-    logging.info("Dashboard link: %s" % client.dashboard_link)
+    with AutoDaskCluster(args.cluster) as cluster, dask.distributed.Client(cluster) as client:
+        logging.info("Dashboard link: %s" % client.dashboard_link)
 
-    logging.info("Loading %s" % input_file)
-    data = xarray.open_zarr(input_file)
+        logging.info("Loading %s" % input_file)
+        data = xarray.open_zarr(input_file)
 
-    if args.persist:
-        logging.info("Loading data into cluster memory...")
-        data = data.persist()
-        dask.distributed.wait(data)
-        logging.info("Finished loading data")
+        if args.persist:
+            logging.info("Loading data into cluster memory...")
+            data = data.persist()
+            dask.distributed.wait(data)
+            logging.info("Finished loading data")
 
-    logging.info("Calculating task graph")
-    results = data.groupby('cluster').mean(dim='cell')
+        logging.info("Calculating task graph")
+        results = data.groupby('cluster').mean(dim='cell')
 
-    if args.visualize:
-        logging.info("Saving task graph: %s" % TASK_GRAPH_FILE)
-        dask.visualize(results, filename=TASK_GRAPH_FILE)
+        if args.visualize:
+            logging.info("Saving task graph: %s" % TASK_GRAPH_FILE)
+            dask.visualize(results, filename=TASK_GRAPH_FILE)
 
-    logging.info("Executing task graph and streaming output to %s" % output_file)
-    shutil.rmtree(output_file, ignore_errors=True)
-    results.to_zarr(output_file)
+        logging.info("Executing task graph and streaming output to %s" % output_file)
+        shutil.rmtree(output_file, ignore_errors=True)
+        results.to_zarr(output_file)
 
-    logging.info("Finished")
+        logging.info("Finished")

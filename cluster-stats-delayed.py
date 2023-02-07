@@ -22,7 +22,7 @@ import itertools
 import dask
 import dask.delayed
 import dask.distributed
-from dask_cluster import init_dask_client
+from dask_cluster_helpers import AutoDaskCluster
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
@@ -32,6 +32,7 @@ ARG_PARSER.add_argument('-v', '--visualize', help='Generate a Dask task graph vi
     action='store_true')
 ARG_PARSER.add_argument('-p', '--persist', 
     help='Eager-load the dataset into memory using dask.Array.persist()', action='store_true')
+AutoDaskCluster.add_argparse_args(ARG_PARSER)
 
 TASK_GRAPH_FILE = 'dask-task-graph.svg'
 
@@ -91,33 +92,33 @@ if __name__ == '__main__':
     base_name = ".".join(os.path.basename(input_file).split('.')[0:-1])
     output_file = os.path.join(directory, base_name + '.cl-stats.parquet')
 
-    client = init_dask_client()
-    logging.info("Dashboard link: %s" % client.dashboard_link)
+    with AutoDaskCluster(args.cluster) as cluster, dask.distributed.Client(cluster) as client:
+        logging.info("Dashboard link: %s" % client.dashboard_link)
 
-    logging.info("Loading %s" % input_file)
-    data = xarray.open_zarr(input_file)
+        logging.info("Loading %s" % input_file)
+        data = xarray.open_zarr(input_file)
 
-    if args.persist:
-        logging.info("Persisting data into cluster memory...")
-        data = data.persist()
-        dask.distributed.wait(data)
-        logging.info("Finished persisting data")
+        if args.persist:
+            logging.info("Persisting data into cluster memory...")
+            data = data.persist()
+            dask.distributed.wait(data)
+            logging.info("Finished persisting data")
 
-    logging.info("Computing statistics")
+        logging.info("Computing statistics")
 
-    da = data.X.data  # access underlying dask array directly
-    delayed_results = []
+        da = data.X.data  # access underlying dask array directly
+        delayed_results = []
 
-    for inds in itertools.product(*map(range, da.blocks.shape)):
-        delayed_results.append(delayed_chunk_statistics(data, inds))
+        for inds in itertools.product(*map(range, da.blocks.shape)):
+            delayed_results.append(delayed_chunk_statistics(data, inds))
 
-    results = combine_delayed_results(delayed_results)
+        results = combine_delayed_results(delayed_results)
 
-    if args.visualize:
-        logging.info("Saving task graph: %s" % TASK_GRAPH_FILE)
-        dask.visualize(results, filename=TASK_GRAPH_FILE)
+        if args.visualize:
+            logging.info("Saving task graph: %s" % TASK_GRAPH_FILE)
+            dask.visualize(results, filename=TASK_GRAPH_FILE)
 
-    results = results.compute()
+        results = results.compute()
 
-    logging.info("Finished computing statistics, writing to %s" % output_file)
-    results.to_parquet(output_file)
+        logging.info("Finished computing statistics, writing to %s" % output_file)
+        results.to_parquet(output_file)

@@ -33,10 +33,16 @@ import argparse
 import readline
 import rlcompleter
 
-from dask_cluster import init_dask_client
+from dask.distributed import Client
+from dask_cluster_helpers import AutoDaskCluster
+
+DASK_CLIENT_VARIABLE = 'dask_client'
 
 ARG_PARSER = argparse.ArgumentParser(prog=sys.argv[0], description=__doc__)
-ARG_PARSER.add_argument('path', help='Full path to a dataset to load', nargs='+')
+ARG_PARSER.add_argument('path', help='Full path to a dataset to load', nargs='*')
+
+AutoDaskCluster.add_argparse_args(ARG_PARSER)
+
 
 def open_dataset(path):
     ext = path.split('.')[-1:][0].lower()
@@ -56,26 +62,30 @@ def open_dataset(path):
 # Dask requires wrapping in a __name__ == '__main__' check
 # in order to use the distributed client locally
 if __name__ == '__main__':
+    _g = globals()
     args = ARG_PARSER.parse_args()
 
-    client = init_dask_client()
-    print("Dask dashboard link: %s" % client.dashboard_link)
+    with AutoDaskCluster(args.cluster) as cluster, Client(cluster) as client:
 
-    print("\n\nDatasets:")
+        _g[DASK_CLIENT_VARIABLE] = client
+        print("Dask client available in '%s' variable" % DASK_CLIENT_VARIABLE)
+        print("Dashboard link: %s" % client.dashboard_link)
 
-    _g = globals()
-    datasets = args.path
-    var_names = ['data%d' % i for i in range(1, len(datasets)+1)]
+        datasets = args.path
+        var_names = ['data%d' % i for i in range(1, len(datasets)+1)]
 
-    for path, var_name in zip(datasets, var_names):
-        path = path.rstrip(os.sep)
-        print("* %s: %s" % (var_name, path))
-        _g[var_name] = open_dataset(path)
+        if datasets:
+            print("\n\nDatasets opened:")
 
-    print("\n")
+        for path, var_name in zip(datasets, var_names):
+            path = path.rstrip(os.sep)
+            print("* %s: %s" % (var_name, path))
+            _g[var_name] = open_dataset(path)
 
-    readline.set_completer(rlcompleter.Completer(_g).complete)
-    readline.parse_and_bind("tab: complete")
+        print("\n")
 
-    # launch an interactive python session
-    code.InteractiveConsole(locals=_g).interact()
+        readline.set_completer(rlcompleter.Completer(_g).complete)
+        readline.parse_and_bind("tab: complete")
+
+        # launch an interactive python session
+        code.InteractiveConsole(locals=_g).interact()
