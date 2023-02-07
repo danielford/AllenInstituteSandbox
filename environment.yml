@@ -4,12 +4,16 @@ channels:
 dependencies:
   - python=3.7
   - anndata
+  - boto3
+  - conda-pack
   - dask
   - dask-yarn
-  - pyarrow
-  - s3fs
-  - conda-pack
-  - tornado=5
+  - fabric
   - pandas
+  - pyarrow
+  - python-daemon
+  - pyyaml
+  - s3fs
+  - tornado=5
   - xarray
   - zarr
