@@ -114,17 +114,7 @@ mamba install \
 -c conda-forge \
 -y \
 -v \
-python=3.7 \
-dask \
-dask-yarn \
-conda-pack \
-pyarrow \
-s3fs \
-tornado=5 \
-pandas \
-xarray \
-zarr \
-anndata \
+###PACKAGES_FROM_ENVIRONMENT.YML###
 $EXTRA_CONDA_PACKAGES
 
 
@@ -233,6 +223,7 @@ c.NotebookApp.token = ''
 c.NotebookApp.password = ''
 c.NotebookApp.open_browser = False
 c.NotebookApp.ip = '0.0.0.0'
+c.NotebookApp.port = 8888
 EOF
 
 
