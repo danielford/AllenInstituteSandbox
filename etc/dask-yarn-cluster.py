@@ -4,40 +4,45 @@ import time
 import os
 import sys
 import signal
-import socket
 from datetime import datetime
-from contextlib import closing
 from daemon import DaemonContext
 from daemon.pidfile import PIDLockFile
 from dask_yarn import YarnCluster
 
-# from https://stackoverflow.com/a/45690594
-def __find_free_port():
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(('', 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
+def wait_for_process_exit(pid, timeout_sec=60):
+    def is_running(pid):
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError as err:
+            return False
+
+    start_time = time.time()
+    while is_running(pid):
+        time.sleep(0.25)
+        if time.time() - start_time > timeout_sec:
+            raise RuntimeError('Waited %ds for pid %d to exit' % (timeout_sec, pid))
 
 if __name__ == '__main__':
     script_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
     home_dir = '/home/hadoop'
-    logfile = open(os.path.join(home_dir, script_name + '.log'), 'a')
+    logfile = open(os.path.join(home_dir, script_name + '.log'), 'w')
     pidfile = os.path.join(home_dir, script_name + '.pid')
+    stop_requested = len(sys.argv) > 1 and sys.argv[1].lower() == 'stop'
 
-    if len(sys.argv) > 1 and sys.argv[1].lower() == 'stop':
+    if os.path.exists(pidfile) or stop_requested:
         with open(pidfile, 'r') as f:
             pid = int(f.read().strip())
             print('Sending SIGTERM to pid %d' % pid)
             os.kill(pid, signal.SIGTERM)
-            sys.exit()
+            wait_for_process_exit(pid)
+
+    if stop_requested:
+        sys.exit()
 
     signals_received = {}
     def shutdown_handler(signum, frame):
         signals_received[signum] = True
-
-    scheduler_port = __find_free_port()
-    print('YarnCluster scheduler port: %d' % scheduler_port)
-    sys.stdout.flush()
 
     with DaemonContext(
         working_directory=home_dir,
@@ -55,7 +60,6 @@ if __name__ == '__main__':
         with YarnCluster(
             environment='environment.tar.gz', 
             deploy_mode='local', 
-            port=scheduler_port
         ) as cluster:
             cluster.adapt()
 

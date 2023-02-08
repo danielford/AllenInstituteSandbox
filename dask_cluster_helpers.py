@@ -6,10 +6,8 @@ Exports a single class: AutoDaskCluster
 import os
 import time
 import re
-import socket
-from contextlib import closing
 import boto3
-from fabric import Connection
+import fabric
 import dask
 import dask.distributed
 
@@ -69,11 +67,44 @@ class AutoDaskCluster:
         response = emr_client.describe_cluster(ClusterId=cluster_id)
         return response['Cluster']['MasterPublicDnsName']
 
+    def __find_dask_ports(self, timeout_sec=60):
+        def extract_port(regex, output):
+            match = regex.search(output)
+            if match:
+                return int(match.group(1))
+
+        scheduler_regex = re.compile(r'Scheduler at:\s*tcp://[0-9\.]+:(\d+)')
+        dashboard_regex = re.compile(r'dashboard at:\s*:(\d+)')
+        scheduler_port = None
+        dashboard_port = None
+
+        start_time = time.time()
+
+        while scheduler_port is None or dashboard_port is None:
+            if time.time() - start_time > timeout_sec:
+                raise RuntimeError('Could not get Dash cluster connection details after %d seconds' % timeout_sec)
+
+            time.sleep(1)
+
+            result = self.__connection.run('cat /home/hadoop/dask-yarn-cluster.log', hide=True)
+
+            if scheduler_port is None:
+                scheduler_port = extract_port(scheduler_regex, result.stdout)
+                if scheduler_port:
+                    print('Found scheduler port: %d' % scheduler_port)
+            
+            if dashboard_port is None:
+                dashboard_port = extract_port(dashboard_regex, result.stdout)
+                if dashboard_port:
+                    print('Found dashboard port: %d' % dashboard_port)
+    
+        return (scheduler_port, dashboard_port)
+
 
     def __init_emr_cluster_client(self, emr_hostname):
-        private_key = '/Users/danford/Dropbox/Skunkworks/Misc/Allen Institute Key pair.pem'
+        private_key = '/Users/danford/Dropbox/Skunkworks/Misc/Allen Institute Key pair.pem' # FIXME
 
-        self.__connection = Connection(
+        self.__connection = fabric.Connection(
             host = emr_hostname,
             user = 'hadoop',
             connect_kwargs = {
@@ -81,22 +112,18 @@ class AutoDaskCluster:
             })
 
         self.__connection.put(os.path.join(os.path.dirname(__file__), 'etc/dask-yarn-cluster.py'), '/tmp/')
-        result = self.__connection.run('/tmp/dask-yarn-cluster.py')
+        self.__connection.run('/tmp/dask-yarn-cluster.py', hide=True)
 
-        regex = re.compile(r'YarnCluster scheduler port: (\d+)')
+        scheduler_port, dashboard_port = self.__find_dask_ports()
 
-        match = regex.match(result.stdout)
-        if match:
-            scheduler_port = int(match.group(1))
-        else:
-            raise RuntimeError('Could not get YarnCluster scheduler port from result: %s' % result)
+        self.__scheduler_forward = self.__connection.forward_local(scheduler_port)
+        self.__scheduler_forward.__enter__()
 
-        time.sleep(10)
-
-        self.__forward_context = self.__connection.forward_local(scheduler_port)
-        self.__forward_context.__enter__()
+        self.__dashboard_forward = self.__connection.forward_local(dashboard_port)
+        self.__dashboard_forward.__enter__()
 
         self.scheduler_address = 'tcp://localhost:%d' % scheduler_port
+        self.dashboard_address = 'http://localhost:%d' % dashboard_port
 
     def __enter__(self):
         return self
@@ -106,7 +133,8 @@ class AutoDaskCluster:
             self.__cluster.close()
         else:
             self.__connection.run('/tmp/dask-yarn-cluster.py stop', hide=True)
-            self.__forward_context.__exit__(*args)
+            self.__scheduler_forward.__exit__(*args)
+            self.__dashboard_forward.__exit__(*args)
             self.__connection.close()
 
         return self
