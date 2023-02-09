@@ -1,6 +1,28 @@
-"""Module to assist in creating a Dask local cluster to be used in scripts
+"""Module to assist in creating and connecting to a Dask cluster in scripts.
 
-Exports a single class: AutoDaskCluster
+This module exports a single Python class: AutoDaskCluster. The best way to use
+it is as a Python context manager ('with' statement) so that it can automatically
+clean up any remote resources used by your script:
+
+with AutoDaskCluster() as cluster, dask.distributed.Client(cluster) as client:
+    # now you can do Dask operations in here and the cluster will be
+    # automatically cleaned up after the block exits.
+
+
+By default, it creates a local Dask cluster (multiple Python processes running
+on your local machine). However, if you specify the EMR cluster type, it will
+automatically connect to your currently running EMR cluster, create a new
+Dask YarnCluster on it, and create an SSH tunnel so your Dask client can talk
+to the cluster (and you can monitor the Dask dashboard):
+
+with AutoDaskCluster('EMR') as cluster, dask.distributed.Client(cluster) as client:
+    # Inside this block, a Dask cluster is created on the running EMR cluster.
+    # Once the block exits, the Dask cluster (but NOT the EMR cluster) is shut down.
+
+Keep in mind when running on the EMR cluster, you should try to load all your inputs
+and write all your outputs using Dask to AWS or GCP cloud storage. You want Dask
+workers to be pulling raw data directly to/from cloud storage, rather than streaming
+data through the SSH tunnel you have open to the EMR cluster.
 """
 
 import os

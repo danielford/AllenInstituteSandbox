@@ -50,7 +50,7 @@ conda activate $(pwd)/.env
 
 Another possibility is that you've pulled down a new commit that added a new dependency. In that case, you just need to update from the `environment.yml` file again:
 ```shell
-mamba env update --prune --file environment.yml
+mamba env update --prefix $(pwd)/.env --prune --file environment.yml
 ```
 
 ## Adding new dependencies
@@ -60,7 +60,7 @@ You can, of course, install packages directly using `conda install`. However, un
 
 After adding or removing dependencies from `environment.yml`, simply update the environment using Conda:
 ```shell
-mamba env update --prune --file environment.yml
+mamba env update --prefix $(pwd)/.env --prune --file environment.yml
 ```
 
 Don't forget to commit and push the new `environment.yml`!

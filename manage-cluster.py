@@ -1,4 +1,19 @@
 #!/usr/bin/env python
+"""Script for managing EMR (Elastic Map Reduce) clusters on the command-line.
+
+Usage:
+    ./manage-cluster.py [options] [Action]
+
+Action can be one of:
+
+    status:     Show the currently running cluster(s)
+    start:      Start a new EMR cluster
+    stop:       Stop the currently running EMR cluster
+    notebook:   Open a Jupyter Notebook session on the cluster
+    ssh:        SSH into the primary node and drop into a shell
+
+See ./manage-cluster.py --help to see all the available options.
+"""
 
 import os
 import argparse
@@ -257,13 +272,12 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
     arg_parser = argparse.ArgumentParser(prog=sys.argv[0], description=__doc__)
-    arg_parser.add_argument('action', help='Action(s) to perform', choices=EMRClusterManager.ACTIONS, nargs='+')
+    arg_parser.add_argument('action', help='Action to perform', default='status', choices=EMRClusterManager.ACTIONS, nargs='?')
     arg_parser.add_argument('-c', '--cluster', help='Specify EMR cluster ID (e.g., j-ASDF1234)')
     arg_parser.add_argument('-p', '--profile', help='Specify AWS CLI profile to use for credentials (\'aws configure list-profiles\' to list)')
     #arg_parser.add_argument('-i', '--instance-type', help='Specify instance type (default: ')
     args = arg_parser.parse_args()
 
     cluster_mgr = EMRClusterManager(args.cluster, args.profile)
+    getattr(cluster_mgr, args.action)()
 
-    for action in args.action:
-        getattr(cluster_mgr, action)()
