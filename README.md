@@ -124,6 +124,60 @@ If you've installed the Python extension (both locally as well as in the remote 
 
 # Progress Updates
 
+## February 10, 2023
+Hi folks! Here's what I've been working on, some of the challenges I've had, and some ideas I have for next steps.
+
+### Approach
+My high level approach to launching a Dask cluster in AWS is to use short-lived ephemeral Elastic Map Reduce (EMR) clusters, and then using Dask-Yarn to launch a Dask cluster _inside_ the EMR cluster. There are some tradeoffs with this approach (and I'm always happy to re-evaluate whether this was the right choice), but these are the main reasons I went this way:
+* I went with EMR over just using plain-old EC2 instances and wiring up the cluster "by-hand" because EMR has built-in auto-scaling and handles a lot of the cluster management operations for you (replacing unhealthy nodes, managing storage, etc).
+* EMR is a very generic platform that can run many "big data" applications. I was able to get Jupyter Notebook set up and talking to Dask inside the EMR cluster (more details below)
+* One of your concerns was keeping the cost manageable. I could set up a permanent "always-on" Dask cluster (whether on EMR or plain old EC2), but then you are always paying for it. With an ephemeral/short-lived cluster, you can launch a very large cluster and have it available in about 10 minutes, run it for as long as you want, and then shut it down when you are done. We can also set up billing alerts or automatically shut down clusters if they are idle for too long (in case you forget to shut it down).
+* Even though it was more work initially to automate the process of cluster creation, this approach is more robust because in case of transient problems with your cluster, you can simply throw it away and create a fresh one instead of spending a lot of effort troubleshooting or maintaining a long-running cluster.
+
+### New script for EMR cluster management: manage-cluster.py
+I've added a new Python script to the repository called `manage-cluster.py` that provides a command-line interface for launching and connecting to an EMR cluster. See the documentation or run `./manage-cluster.py --help` for more details, but at a glance:
+
+```shell
+
+./manage-cluster.py status    # show the currently running EMR cluster(s) and their state
+./manage-cluster.py start     # launch a new EMR cluster (will take about 8-10min to become available)
+./manage-cluster.py stop      # stop the currently running EMR cluster
+./manage-cluster.py notebook  # launch a Jupyter Notebook session
+./manage-cluster.py ssh       # ssh into the primary cluster node (useful for debugging)
+```
+
+### Jupyter Notebook access
+After launching an EMR cluster and running `./manage-cluster.py notebook` (on your laptop), you should be able to access Jupyter Notebook by going to http://localhost:8888. You can create a new Python kernel notebook and launch a Dask cluster directly from your notebook:
+
+```python
+from dask_yarn import YarnCluster
+from dask.distributed import Client
+
+cluster = YarnCluster()
+client = Client(cluster)
+cluster.scale(20)  # launch 20 workers (will take a few minutes for them to become ready)
+
+# now you can inspect the 'cluster' variable in your notebook and it will have a link to the Dask dashboard that you can also load to see how Dask is running.
+```
+
+### New Python class for connecting to Dask cluster: AutoDaskCluster
+I created a new class in `dask_cluster_helpers.py` called `AutoDaskCluster` for use in command-line Python scripts (e.g., NOT for running in Jupyter Notebook). This class is a drop-in replacement for `dask.distributed.LocalCluster` except it creates an SSH tunnel to your EMR cluster, launches a Dask-Yarn cluster inside it, then provides a tunnel to the Dask client running on your laptop (or whever you are running the script). A sample usage is here:
+
+```python
+with AutoDaskCluster('EMR') as cluster, dask.distributed.Client(cluster) as client:
+    # Inside this block, a Dask cluster is created on the running EMR cluster.
+    # Once the block exits, the Dask cluster (but NOT the EMR cluster) is shut down.
+```
+
+#### Next Steps
+First, there are a few things I need to do first before you guys can use the scripts above:
+* I spent more time this week than I anticipated getting the cluster configured correctly and getting the SSH tunneling working. So, I still need to move some hardcoded data in my scripts into a configuration file (this should only take me a few hours).
+* I need to expose some way for you to control the size and scaling behavior of the EMR cluster and Dask cluster(s), probably through configuration files and/or command-line arguments
+* I will need to replicate some basic infrastructure in your own AWS account before you'll be able to launch EMR clusters as I am doing. I will need to create some VPCs, security groups, IAM roles, etc. Hopefully I will have all the permissions needed to do this, but you guys might need to coordinate with your IT group or whoever manages your AWS resources.
+
+Another thing I think I need to do is start focusing more on a concrete use case for you guys. Sometimes I struggle to come up with meaningful examples to play with the dataset, and I am also a bit unsure whether the approach I've taken above is the right one, so I think it would be helpful if we tried to replicate something end-to-end.
+
+
 ## December 13, 2022
 I thought it was a good time to give a formal update and go over what I’ve done and learned so far, as well as some ideas for next steps.
 
