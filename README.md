@@ -134,6 +134,11 @@ My high level approach to launching a Dask cluster in AWS is to use short-lived 
 * One of your concerns was keeping the cost manageable. I could set up a permanent "always-on" Dask cluster (whether on EMR or plain old EC2), but then you are always paying for it. With an ephemeral/short-lived cluster, you can launch a very large cluster and have it available in about 10 minutes, run it for as long as you want, and then shut it down when you are done. We can also set up billing alerts or automatically shut down clusters if they are idle for too long (in case you forget to shut it down).
 * Even though it was more work initially to automate the process of cluster creation, this approach is more robust because in case of transient problems with your cluster, you can simply throw it away and create a fresh one instead of spending a lot of effort troubleshooting or maintaining a long-running cluster.
 
+### New dependency management tools: Conda and Mamba
+I faced some issues with using plan-old `pip` and switched the dependency management to using Conda, since it plays nicely with Dask-Yarn and allows you to also manage your Python versions (which `pip` does not). This worked great, _EXCEPT_ that it was extremely slow... It was taking several hours to bootstrap a new Python environment with only a handful of packages, which does not work well with my "ephemeral / transient EMR clusters" approach described above. It's important that the EMR cluster is ready to use in a reasonable amount of time (<10min). So now I am using Mamba, which is a drop-in replacement for Conda but is much much faster.
+
+I plan to revisit this when/if I need to upgrade the version of Python (right now I am using 3.7). I am considering `pipenv` or `Poetry` as alternatives.
+
 ### New script for EMR cluster management: manage-cluster.py
 I've added a new Python script to the repository called `manage-cluster.py` that provides a command-line interface for launching and connecting to an EMR cluster. See the documentation or run `./manage-cluster.py --help` for more details, but at a glance:
 
@@ -172,7 +177,7 @@ with AutoDaskCluster('EMR') as cluster, dask.distributed.Client(cluster) as clie
 #### Next Steps
 First, there are a few things I need to do first before you guys can use the scripts above:
 * I spent more time this week than I anticipated getting the cluster configured correctly and getting the SSH tunneling working. So, I still need to move some hardcoded data in my scripts into a configuration file (this should only take me a few hours).
-* I need to expose some way for you to control the size and scaling behavior of the EMR cluster and Dask cluster(s), probably through configuration files and/or command-line arguments
+* I need to expose some way for you to control the size and scaling behavior of the EMR cluster and Dask cluster(s), probably through configuration files and/or command-line arguments. Right now it is hardcoded.
 * I will need to replicate some basic infrastructure in your own AWS account before you'll be able to launch EMR clusters as I am doing. I will need to create some VPCs, security groups, IAM roles, etc. Hopefully I will have all the permissions needed to do this, but you guys might need to coordinate with your IT group or whoever manages your AWS resources.
 
 Another thing I think I need to do is start focusing more on a concrete use case for you guys. Sometimes I struggle to come up with meaningful examples to play with the dataset, and I am also a bit unsure whether the approach I've taken above is the right one, so I think it would be helpful if we tried to replicate something end-to-end.
